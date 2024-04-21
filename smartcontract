@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.23;
+
+contract Dealing{
+   address internal immutable owner;
+   bool mutex;
+    constructor(address _owner){
+        owner=_owner;
+}
+    struct newdeals{
+        uint id;
+        address buyer;
+        address seller;
+        uint dealamount;
+        bool buyeragree;
+        bool selleragree;
+
+        bool buyersatisfied;
+        bool sellersatisfied;
+        bool dealdone;
+   }
+
+    mapping(address=>uint256)public balance;
+    mapping(address=>mapping(uint=>uint))Lockedamount;
+    newdeals[]public newdeal;
+    //All functions
+    receive ()external payable 
+    {
+        require(msg.value>0,"Balance should be biger then zero");
+    balance[msg.sender]+=msg.value;
+
+    }
+
+    function withdraw(uint amount)public {
+        require(balance[msg.sender]>=amount,"withdraw Balance should be min to your balance");
+        require(!mutex);
+        mutex=true;
+        balance[msg.sender]-=amount;
+        bool success=payable(msg.sender).send(amount);
+        require(success,"Transaction failed");
+        mutex=false;
+    }
+function NewDeal(address _buyer,address _seller,uint _dealamount)public{
+        newdeal.push(newdeals(newdeal.length,_buyer,_seller,_dealamount,false,false,false,false,false));
+    }
+
+    function BuyerAgree(uint id)public{
+        require(msg.sender==newdeal [id].buyer,"Only Buyer Can Call This");
+        require(newdeal[id].buyeragree==false,"Buyer IS Alredy Agreed");
+        require(balance[msg.sender]>=newdeal[id].dealamount,"Your balance should be equal or biger to dealamount"); 
+        newdeal[id].buyeragree=true;
+        if(newdeal[id].buyeragree==true || newdeal[id].selleragree==true){
+            uint buyerbalancelocked=newdeal[id].dealamount;
+            balance[newdeal[id].buyer]-=newdeal[id].dealamount;
+            balance[newdeal[id].seller]-=newdeal[id].dealamount;
+            Lockedamount[newdeal[id].buyer][id]=buyerbalancelocked;
+            Lockedamount[newdeal[id].seller][id]=buyerbalancelocked;
+        }
+    }
+
+    function SellerAgree(uint id)public {
+        require(msg.sender==newdeal[id].seller,"Only Seller Can Call This");
+        require(newdeal[id].selleragree==false,"Seller Is Alredy Agreed");
+        require(balance[msg.sender]>=newdeal[id].dealamount,"Your balance should be equal or biger to dealamount");
+               newdeal[id].selleragree=true;
+  if(newdeal[id].buyeragree==true || newdeal[id].selleragree==true){
+            uint buyerbalancelocked=newdeal[id].dealamount;
+            balance[newdeal[id].buyer]-=newdeal[id].dealamount;
+            balance[newdeal[id].seller]-=newdeal[id].dealamount;
+
+            Lockedamount[newdeal[id].buyer][id]=buyerbalancelocked;
+            Lockedamount[newdeal[id].seller][id]=buyerbalancelocked;
+
+
+        }
+    }
+
+    function buyersatisfied(uint id)public {
+           require(msg.sender==newdeal [id].buyer,"Only Buyer Can Call This");
+            require(newdeal[id].buyeragree==true|| newdeal[id].selleragree==true,"Both parties are requried to be agreed");
+
+            newdeal[id].buyersatisfied=true;
+
+            if(newdeal[id].buyersatisfied==true || newdeal[id].sellersatisfied==true){
+                 require(!mutex,"Mutex Active");
+                mutex=true;
+               uint buyerbalanceunlocked=newdeal[id].dealamount;
+
+               Lockedamount[newdeal[id].buyer][id]-=buyerbalanceunlocked;
+               Lockedamount[newdeal[id].seller][id]-=buyerbalanceunlocked;
+
+               balance[newdeal[id].buyer]+=newdeal[id].dealamount;
+               balance[newdeal[id].seller]+=newdeal[id].dealamount;
+
+               mutex=false;
+               newdeal[id].dealdone=true;
+            }
+
+
+    }
+
+    function sellersatisfied(uint id)public {
+        require(msg.sender==newdeal[id].seller,"Only Seller Can Call This");
+      require(newdeal[id].buyeragree==true|| newdeal[id].selleragree==true,"Both parties are requried to be agreed");
+              newdeal[id].sellersatisfied=true;
+             if(newdeal[id].buyersatisfied==true || newdeal[id].sellersatisfied==true){
+                 require(!mutex,"Mutex Active");
+                mutex=true;
+               uint buyerbalanceunlocked=newdeal[id].dealamount;
+
+               Lockedamount[newdeal[id].buyer][id]-=buyerbalanceunlocked;
+               Lockedamount[newdeal[id].seller][id]-=buyerbalanceunlocked;
+
+               balance[newdeal[id].buyer]+=newdeal[id].dealamount;
+               balance[newdeal[id].seller]+=newdeal[id].dealamount;
+
+               mutex=false;
+               newdeal[id].dealdone=true;
+      }
+    }    
+}
